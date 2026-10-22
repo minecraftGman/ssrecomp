@@ -33,29 +33,9 @@ ANDROID_MAC_NOTE = 'Android builds from macOS are not supported yet; use a Linux
 # Packaged with tools/package_setup.py, the project's source travels
 # inside it and is unpacked into a folder of its own, where the game is then built.
 FROZEN = getattr(sys, 'frozen', False)
-
-
-def self_bundle_path():
-    """If running inside a macOS .app bundle, return the path to the bundle directory."""
-    if not DARWIN:
-        return None
-    p = os.path.abspath(sys.executable)
-    while p and p != os.path.dirname(p):
-        if p.endswith('.app'):
-            return p
-        p = os.path.dirname(p)
-    return None
-
-
-def self_path():
-    """The file or bundle to replace: the AppImage on Linux, .app bundle on macOS, else the executable."""
-    return os.environ.get('APPIMAGE') or self_bundle_path() or sys.executable
-
-
-# Portable mode: with a file portable.txt next to the executable (the AppImage on Linux,
-# the .app bundle on macOS), everything is kept in the folder ssrecomp-data beside it
-# instead of the user's profile.
-EXE_DIR = os.path.dirname(os.path.abspath(self_path())) if FROZEN else None
+# Portable mode: with a file portable.txt next to the executable (the AppImage on Linux),
+# everything is kept in the folder ssrecomp-data beside it instead of the user's profile.
+EXE_DIR = os.path.dirname(os.path.abspath(os.environ.get('APPIMAGE') or sys.executable)) if FROZEN else None
 PORTABLE = FROZEN and os.path.exists(os.path.join(EXE_DIR, 'portable.txt'))
 if PORTABLE:
     HERE = os.path.join(EXE_DIR, 'ssrecomp-data')
@@ -429,6 +409,20 @@ def forget_moved_build(build):
             os.remove(os.path.join(build, 'build.ninja'))
 
 
+STANDALONE = os.path.join(HERE, 'standalone')
+
+
+def make_standalone(log):
+    """Copies the game (and, on Windows, the libraries beside it) into a folder of its own.
+    That folder can be moved anywhere: put the .nds file in it, start ssrecomp(.exe) with no
+    arguments, and the game finds the ROM beside itself and keeps its save and settings there."""
+    os.makedirs(STANDALONE, exist_ok=True)
+    shutil.copy2(EXE, STANDALONE)
+    for dll in glob.glob(os.path.join(BUILD, '*.dll')):
+        shutil.copy2(dll, STANDALONE)
+    log('Standalone copy: ' + STANDALONE + ' (put the .nds file in it and start ' + os.path.basename(EXE) + ')')
+
+
 def run_steps(rom, jobs, log, progress, android=False):
     """Generates and compiles (for Android: and makes the APK). log(text) reports a line,
     progress(fraction, label) the progress (fraction None: only the label changes).
@@ -511,6 +505,7 @@ def run_steps(rom, jobs, log, progress, android=False):
                     'libwinpthread-1.dll'):
             if bindir and os.path.exists(os.path.join(bindir, dll)):
                 shutil.copy2(os.path.join(bindir, dll), BUILD)
+    make_standalone(log)
     write_rom_note(rom)
     if os.path.exists(os.path.join(HERE, '.bundle')):
         shutil.copyfile(os.path.join(HERE, '.bundle'), os.path.join(HERE, '.built'))
@@ -588,9 +583,6 @@ UPDATE_ASSETS = {   # (system, machine) -> the release file for it
     ('win32', 'AMD64'): 'ssrecomp-setup-windows-x86_64.exe',
     ('linux', 'x86_64'): 'ssrecomp-setup-linux-x86_64',
     ('linux', 'aarch64'): 'ssrecomp-setup-linux-aarch64.AppImage',
-    ('darwin', 'arm64'): 'ssrecomp-setup-macos-arm64.zip',
-    ('darwin', 'aarch64'): 'ssrecomp-setup-macos-arm64.zip',
-    ('darwin', 'x86_64'): 'ssrecomp-setup-macos-x86_64.zip',
 }
 
 
@@ -607,6 +599,11 @@ def version():
 
 def version_key(v):
     return tuple(int(x) for x in v.split('.'))
+
+
+def self_path():
+    """The file to replace: the AppImage when running from one, else the executable."""
+    return os.environ.get('APPIMAGE') or sys.executable
 
 
 def https_open(url):
@@ -647,15 +644,6 @@ def install_update(update, progress):
     latest, _page, url, sums_url = update
     target = self_path()
     name = url.rsplit('/', 1)[1]
-    is_zip = name.endswith('.zip')
-    if is_zip:
-        if not os.access(os.path.dirname(target), os.W_OK):
-            raise RuntimeError('Cannot update the app in this folder. Move it to a folder '
-                               'you can write to, then try again.')
-        ditto = shutil.which('ditto')
-        if not ditto:
-            raise RuntimeError('Updating the macOS app requires ditto. '
-                               'Restore /usr/bin/ditto or download the update manually.')
     sums = {}
     with https_open(sums_url) as r:
         for line in r.read().decode().splitlines():   # "<sha256>  <file>"
@@ -665,9 +653,9 @@ def install_update(update, progress):
     digest = sums.get(name)
     if not digest:
         raise RuntimeError('The release has no checksum for ' + name + '.')
-    download_file = (target + '.download') if is_zip else (target + '.new')
+    new = target + '.new'
     h = hashlib.sha256()
-    with https_open(url) as r, open(download_file, 'wb') as f:
+    with https_open(url) as r, open(new, 'wb') as f:
         total, done = int(r.headers.get('Content-Length') or 0), 0
         for block in iter(lambda: r.read(1 << 20), b''):
             f.write(block)
@@ -675,38 +663,8 @@ def install_update(update, progress):
             done += len(block)
             progress(done / total if total else None, 'Downloading v%s: %d of %d MB' % (latest, done >> 20, total >> 20))
     if h.hexdigest() != digest:
-        os.remove(download_file)
+        os.remove(new)
         raise RuntimeError('The download was damaged (checksum mismatch). Try again.')
-    if is_zip:
-        extract_dir = tempfile.mkdtemp(prefix='ssrecomp-update-', dir=os.path.dirname(target))
-        try:
-            subprocess.run([ditto, '-x', '-k', download_file, extract_dir], check=True)
-            apps = [os.path.join(extract_dir, f) for f in os.listdir(extract_dir) if f.endswith('.app')]
-            if not apps:
-                raise RuntimeError('No .app bundle found in the downloaded archive.')
-            new_app = apps[0]
-            old = target + '.old'
-            if os.path.exists(old):
-                shutil.rmtree(old) if os.path.isdir(old) else os.remove(old)
-            had_target = os.path.exists(target)
-            if had_target:
-                os.replace(target, old)
-            try:
-                os.replace(new_app, target)
-            except OSError:
-                if had_target:
-                    os.replace(old, target)
-                raise
-            try:
-                shutil.rmtree(old) if os.path.isdir(old) else os.remove(old)
-            except OSError:
-                pass
-        finally:
-            if os.path.exists(download_file):
-                os.remove(download_file)
-            if os.path.exists(extract_dir):
-                shutil.rmtree(extract_dir, ignore_errors=True)
-        return target
     if WINDOWS:
         # A running .exe cannot be overwritten, but it can be renamed; the old copy is
         # removed the next time the program starts.
@@ -715,8 +673,8 @@ def install_update(update, progress):
             os.remove(old)
         os.replace(target, old)
     else:
-        os.chmod(download_file, 0o755)
-    os.replace(download_file, target)
+        os.chmod(new, 0o755)
+    os.replace(new, target)
     return target
 
 
@@ -725,25 +683,16 @@ def restart(path):
     env['PYINSTALLER_RESET_ENVIRONMENT'] = '1'   # the new program is a fresh one, not a child of this
     for var in ('APPIMAGE', 'APPDIR', 'OWD', 'ARGV0'):
         env.pop(var, None)
-    if DARWIN and (path.endswith('.app') or os.path.isdir(path)):
-        if shutil.which('open'):
-            subprocess.Popen(['open', '-n', path], env=env, close_fds=True, start_new_session=True)
-            return
-        exe = os.path.join(path, 'Contents', 'MacOS', 'ssrecomp-setup')
-        if os.path.exists(exe):
-            path = exe
     subprocess.Popen([path], env=env, close_fds=True, start_new_session=not WINDOWS,
                      creationflags=getattr(subprocess, 'DETACHED_PROCESS', 0) if WINDOWS else 0)
 
 
 def remove_old_copy():
-    if FROZEN:
-        old = self_path() + '.old'
-        if os.path.exists(old):
-            try:
-                shutil.rmtree(old) if os.path.isdir(old) else os.remove(old)
-            except OSError:
-                pass
+    if FROZEN and WINDOWS:
+        try:
+            os.remove(self_path() + '.old')
+        except OSError:
+            pass
 
 
 def built_from_older_source():

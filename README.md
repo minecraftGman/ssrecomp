@@ -1,7 +1,3 @@
-# THIS PROJECT IS NOT BEING WORKED ON AND WILL NOT RECEIVE UPDATES
-## I am working on this now which is superior to this project: [pokeheartgold-single-screen](https://github.com/ClickingMaster/pokeheartgold-single-screen)
-
-
 # ssrecomp
 
 A native build of Pokémon SoulSilver for single-screen devices. The game's ARM9
@@ -54,6 +50,16 @@ your cartridge. Nothing of the game is in this repository or its releases.
 2. Start it.
 3. Choose your ROM, press **Build**, wait (the first build takes 20–40 minutes),
    then press **Play**.
+
+### Running without the setup program
+
+Setup leaves a `standalone` folder (next to the build: `%LOCALAPPDATA%\ssrecomp\standalone` on
+Windows, `~/.local/share/ssrecomp/standalone` on Linux, `ssrecomp-data/standalone` in portable
+mode) holding `ssrecomp.exe` and the libraries it needs. Copy that folder anywhere, put your
+`.nds` file in it, and start `ssrecomp.exe` by double-clicking: it finds the ROM in its own
+folder and keeps `soulsilver.sav` and `ssrecomp.cfg` there too. Options still work
+(`ssrecomp.exe --fullscreen`, or a shortcut with that in its target); F11 toggles fullscreen.
+To keep an existing save, copy `soulsilver.sav` from setup's folder into this one.
 
 ### macOS (experimental)
 
@@ -125,10 +131,10 @@ from a copy of this repository (then the game is built in that folder).
 out; **Update** downloads it, checks its checksum, replaces the setup program and
 restarts it. Press **Build** once afterwards to rebuild the game with the new
 version (your save and settings are kept). Without a display:
-`ssrecomp-setup-linux-x86_64 --update` (or the Mac app's executable with `--update`), then `--rom` again.
+`ssrecomp-setup-linux-x86_64 --update`, then `--rom` again.
 
 **Portable mode:** put an empty file named `portable.txt` next to the setup
-program (the `.exe`, the AppImage on Linux, or the `.app` bundle on macOS). Everything — the unpacked
+program (the `.exe`, or the AppImage on Linux). Everything — the unpacked
 source, the build, the save and the settings — then goes into a folder
 `ssrecomp-data` beside it instead, so the whole thing can live on a USB stick or
 another drive and move between PCs. Keep the ROM in that folder too (or on the

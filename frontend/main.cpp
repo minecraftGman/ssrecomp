@@ -509,7 +509,53 @@ static bool ParseArgs(int argc, char** argv, Options& o)
         else if (a[0] == '-') return false;
         else o.rom = a;
     }
-    return !o.rom.empty();
+    return true;
+}
+
+// Standalone start: with no ROM on the command line, the game looks in the folder the
+// program itself is in. The ROM is the .nds file there (a name with "soulsilver" or
+// "pokemon" in it wins if there are several), the save and the settings are kept beside it.
+static std::string ExeDir()
+{
+    std::string dir;
+    if (char* base = SDL_GetBasePath())
+    {
+        dir = base;
+        SDL_free(base);
+    }
+    if (dir.empty()) dir = "./";
+    return dir;
+}
+
+static std::string FindRomBeside(const std::string& dir)
+{
+    namespace fs = std::filesystem;
+    std::string best, any;
+    std::error_code ec;
+    for (const auto& e : fs::directory_iterator(fs::u8path(dir), ec))
+    {
+        if (!e.is_regular_file(ec)) continue;
+        std::string ext = e.path().extension().string();
+        std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return (char)tolower(c); });
+        if (ext != ".nds") continue;
+        std::string name = e.path().filename().string();
+        std::transform(name.begin(), name.end(), name.begin(), [](unsigned char c) { return (char)tolower(c); });
+        const std::string full = dir + e.path().filename().string();
+        if (name.find("soulsilver") != std::string::npos || name.find("pokemon") != std::string::npos ||
+            name.find("pokesoulsilver") != std::string::npos)
+        {
+            if (best.empty() || full < best) best = full;
+        }
+        else if (any.empty() || full < any) any = full;
+    }
+    return best.empty() ? any : best;
+}
+
+static void ShowStartError(const std::string& msg)
+{
+    fprintf(stderr, "%s\n", msg.c_str());
+    // Started by double-click there is no terminal to read it in.
+    SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "SoulSilver (ssrecomp)", msg.c_str(), nullptr);
 }
 
 // The DS clock. The game lights the overworld by the time of day (dark blue at night,
@@ -1064,12 +1110,33 @@ int main(int argc, char** argv)
         Usage();
         return 2;
     }
+#ifndef __ANDROID__
+    if (opt.rom.empty())
+    {
+        const std::string dir = ExeDir();
+        opt.rom = FindRomBeside(dir);
+        if (opt.rom.empty())
+        {
+            ShowStartError("Cannot find the game.\n\nPut your Pokemon SoulSilver (US) .nds file in the same folder as this program:\n" +
+                           dir + "\n\nThen start it again.");
+            return 1;
+        }
+        // The save and the settings live beside the program, not in whatever folder it was started from.
+        if (opt.save.empty()) opt.save = dir + "soulsilver.sav";
+        if (opt.config.empty()) opt.config = dir + "ssrecomp.cfg";
+    }
+#endif
+    if (opt.rom.empty())
+    {
+        Usage();
+        return 2;
+    }
     if (opt.save.empty()) opt.save = opt.rom + ".sav";
 
     std::vector<uint8_t> rom = ReadFile(opt.rom);
     if (rom.empty())
     {
-        fprintf(stderr, "cannot read ROM: %s\n", opt.rom.c_str());
+        ShowStartError("Cannot read the ROM:\n" + opt.rom);
         return 1;
     }
 

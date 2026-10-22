@@ -2,8 +2,13 @@
 
 ## Unreleased
 
-- The setup program for macOS can now check for updates and update itself from
-  the setup window and with `--update`, matching Linux and Windows.
+- **The game starts on its own.** Started with no arguments, `ssrecomp` (`ssrecomp.exe`)
+  looks for the `.nds` file in the folder it is in (a name containing "soulsilver" or
+  "pokemon" is preferred if there are several) and keeps `soulsilver.sav` and `ssrecomp.cfg`
+  beside it, so it no longer needs the setup program or `run.sh` to be started. If no ROM is
+  there it says so in a message box. Command-line options (`--fullscreen`, ...) still work with
+  or without a ROM argument. Setup also leaves a ready-to-move copy of the game (with the
+  libraries it needs on Windows) in the `standalone` folder.
 - A single-screen build of the decompilation (the one-screen game) is recognised when it
   starts and shown as the screen the game itself has chosen, with no merging or
   widescreen changes. The choice is not saved in the settings.
