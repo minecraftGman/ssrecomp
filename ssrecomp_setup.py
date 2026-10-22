@@ -409,18 +409,19 @@ def forget_moved_build(build):
             os.remove(os.path.join(build, 'build.ninja'))
 
 
-STANDALONE = os.path.join(HERE, 'standalone')
-
-
 def make_standalone(log):
     """Copies the game (and, on Windows, the libraries beside it) into a folder of its own.
     That folder can be moved anywhere: put the .nds file in it, start ssrecomp(.exe) with no
     arguments, and the game finds the ROM beside itself and keeps its save and settings there."""
-    os.makedirs(STANDALONE, exist_ok=True)
-    shutil.copy2(EXE, STANDALONE)
+    exe = os.path.join(BUILD, os.path.basename(EXE))
+    if not os.path.isfile(exe):
+        return
+    target = os.path.join(HERE, 'standalone')
+    os.makedirs(target, exist_ok=True)
+    shutil.copy2(exe, target)
     for dll in glob.glob(os.path.join(BUILD, '*.dll')):
-        shutil.copy2(dll, STANDALONE)
-    log('Standalone copy: ' + STANDALONE + ' (put the .nds file in it and start ' + os.path.basename(EXE) + ')')
+        shutil.copy2(dll, target)
+    log('Standalone copy: ' + target + ' (put the .nds file in it and start ' + os.path.basename(exe) + ')')
 
 
 def run_steps(rom, jobs, log, progress, android=False):
