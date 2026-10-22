@@ -460,7 +460,6 @@ def run_steps(rom, jobs, log, progress, android=False):
     if jobs < 1:
         raise RuntimeError('Parallel compile jobs must be at least 1.')
     os.makedirs(HERE, exist_ok=True)
-
     def run(cmd, parse_ninja=False):
         log('$ ' + shlex.join(cmd))
         proc = subprocess.Popen(cmd, cwd=HERE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,

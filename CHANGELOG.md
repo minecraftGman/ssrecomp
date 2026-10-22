@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Battle: A on the command row always chose FIGHT.** In a game built from a ROM (not a
+  single-screen decompilation build) the arrows moved the outline along FIGHT, BAG, POKeMON and RUN,
+  but A pressed the button the single-screen cursor had selected, which never moved there: FIGHT.
+  A now presses the outlined button.
 - **The game starts on its own.** Started with no arguments, `ssrecomp` (`ssrecomp.exe`)
   looks for the `.nds` file in the folder it is in (a name containing "soulsilver" or
   "pokemon" is preferred if there are several) and keeps `soulsilver.sav` and `ssrecomp.cfg`

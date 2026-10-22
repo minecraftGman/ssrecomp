@@ -3102,8 +3102,11 @@ int main(int argc, char** argv)
                 if (edge & (1 << KEY_A))
                 {
                     stripTouch = 4;
-                    // On the command row the chosen button is the one the border shows (stripSel).
-                    const int pick = cmd ? stripSel : battleSel;
+                    // On the command row the chosen button is the one the border shows: stripSel
+                    // in a single-screen build (which keeps that cursor itself), otherwise
+                    // battleSel, which the arrows above move. (Using stripSel there always
+                    // pressed FIGHT: nothing moves it outside a single-screen build.)
+                    const int pick = (cmd && singleView()) ? stripSel : battleSel;
                     stripTouchX = cmd ? cmdX[pick] : movX[pick];
                     stripTouchY = cmd ? cmdY[pick] : movY[pick];
                 }
