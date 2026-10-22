@@ -53,13 +53,15 @@ your cartridge. Nothing of the game is in this repository or its releases.
 
 ### Running without the setup program
 
-Setup leaves a `standalone` folder (next to the build: `%LOCALAPPDATA%\ssrecomp\standalone` on
-Windows, `~/.local/share/ssrecomp/standalone` on Linux, `ssrecomp-data/standalone` in portable
-mode) holding `ssrecomp.exe` and the libraries it needs. Copy that folder anywhere, put your
-`.nds` file in it, and start `ssrecomp.exe` by double-clicking: it finds the ROM in its own
-folder and keeps `soulsilver.sav` and `ssrecomp.cfg` there too. Options still work
-(`ssrecomp.exe --fullscreen`, or a shortcut with that in its target); F11 toggles fullscreen.
-To keep an existing save, copy `soulsilver.sav` from setup's folder into this one.
+Build leaves a game folder, `standalone`, next to the build (`%LOCALAPPDATA%\ssrecomp\standalone`
+on Windows, `~/.local/share/ssrecomp/standalone` on Linux, `ssrecomp-data/standalone` in portable
+mode). It holds `ssrecomp.exe`, the libraries it needs, and a copy of your ROM, which setup puts
+there for you. **Play** starts the game from that folder, and you can also copy the whole folder
+anywhere and double-click `ssrecomp.exe`: it finds the `.nds` file in its own folder and keeps
+`soulsilver.sav` and `ssrecomp.cfg` there too. A save from before the folder existed is copied
+into it once. On Windows no console window opens; the game's messages go to `game.log` in the
+same folder. Options still work (`ssrecomp.exe --fullscreen`, or a shortcut with that in its
+target); F11 toggles fullscreen.
 
 ### macOS (experimental)
 

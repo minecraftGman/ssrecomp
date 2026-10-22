@@ -409,19 +409,46 @@ def forget_moved_build(build):
             os.remove(os.path.join(build, 'build.ninja'))
 
 
-def make_standalone(log):
-    """Copies the game (and, on Windows, the libraries beside it) into a folder of its own.
-    That folder can be moved anywhere: put the .nds file in it, start ssrecomp(.exe) with no
-    arguments, and the game finds the ROM beside itself and keeps its save and settings there."""
+def game_folder():
+    return os.path.join(HERE, 'standalone')
+
+
+def game_exe():
+    return os.path.join(game_folder(), os.path.basename(EXE))
+
+
+def make_standalone(log, rom=None, refresh=True):
+    """Sets up the game folder: the program, the libraries it needs (Windows) and the ROM,
+    side by side. The program finds the ROM in its own folder and keeps its save and settings
+    there, so the folder can be moved anywhere and started by double-clicking.
+    refresh: copy the program again even if it is already there (after a build).
+    The ROM is copied only when it is not in the folder yet. An existing save and settings
+    from before this folder existed are carried over once."""
     exe = os.path.join(BUILD, os.path.basename(EXE))
-    if not os.path.isfile(exe):
-        return
-    target = os.path.join(HERE, 'standalone')
+    target = game_folder()
+    if not os.path.isfile(exe) and not os.path.isfile(game_exe()):
+        return None
     os.makedirs(target, exist_ok=True)
-    shutil.copy2(exe, target)
-    for dll in glob.glob(os.path.join(BUILD, '*.dll')):
-        shutil.copy2(dll, target)
-    log('Standalone copy: ' + target + ' (put the .nds file in it and start ' + os.path.basename(exe) + ')')
+    if os.path.isfile(exe) and (refresh or not os.path.isfile(game_exe())):
+        shutil.copy2(exe, target)
+        for dll in glob.glob(os.path.join(BUILD, '*.dll')):
+            shutil.copy2(dll, target)
+    if rom and os.path.isfile(rom):
+        dest = os.path.join(target, os.path.basename(rom))
+        same = os.path.exists(dest) and os.path.samefile(rom, dest)
+        if not same and not (os.path.isfile(dest) and os.path.getsize(dest) == os.path.getsize(rom)):
+            log('Copying the ROM next to the game: ' + dest)
+            tmp = dest + '.part'
+            shutil.copyfile(rom, tmp)
+            os.replace(tmp, dest)
+    for name in ('soulsilver.sav', 'ssrecomp.cfg'):
+        old, new = os.path.join(HERE, name), os.path.join(target, name)
+        has_old = os.path.isfile(old) and os.path.getsize(old) > 0
+        has_new = os.path.isfile(new) and os.path.getsize(new) > 0
+        if has_old and not has_new:
+            shutil.copy2(old, new)
+    log('Game folder: ' + target)
+    return target
 
 
 def run_steps(rom, jobs, log, progress, android=False):
@@ -506,7 +533,7 @@ def run_steps(rom, jobs, log, progress, android=False):
                     'libwinpthread-1.dll'):
             if bindir and os.path.exists(os.path.join(bindir, dll)):
                 shutil.copy2(os.path.join(bindir, dll), BUILD)
-    make_standalone(log)
+    make_standalone(log, rom)
     write_rom_note(rom)
     if os.path.exists(os.path.join(HERE, '.bundle')):
         shutil.copyfile(os.path.join(HERE, '.bundle'), os.path.join(HERE, '.built'))
@@ -567,12 +594,19 @@ ANDROID_HELP = (
 
 def play(extra=()):
     rom = read_rom_note()
+    # The game is started from its own folder, with the ROM beside it (copied there the
+    # first time if the build predates that).
+    folder = make_standalone(lambda text: None, rom, refresh=False)
+    if folder is None:
+        folder, exe, rom_arg = HERE, EXE, rom
+    else:
+        exe, rom_arg = game_exe(), os.path.join(folder, os.path.basename(rom))
     # Started from here there is no terminal to see them in (and none at all on Windows):
     # the game's messages go to game.log, made new each time, for bug reports (beside the
     # build log, build.log).
-    with open(os.path.join(HERE, 'game.log'), 'w') as log:
-        return subprocess.Popen([EXE, rom, '--save', os.path.join(HERE, 'soulsilver.sav'),
-                                 '--config', os.path.join(HERE, 'ssrecomp.cfg'), *extra], cwd=HERE,
+    with open(os.path.join(folder, 'game.log'), 'w') as log:
+        return subprocess.Popen([exe, rom_arg, '--save', os.path.join(folder, 'soulsilver.sav'),
+                                 '--config', os.path.join(folder, 'ssrecomp.cfg'), *extra], cwd=folder,
                                 stdout=log, stderr=subprocess.STDOUT, env=child_env())
 
 

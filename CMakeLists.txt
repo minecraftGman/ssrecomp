@@ -10,6 +10,8 @@ endif()
 project(ssrecomp LANGUAGES C CXX)
 set(SSR_GENERATED_DIR "${CMAKE_CURRENT_SOURCE_DIR}/gen" CACHE PATH "Generated game sources")
 
+option(SSR_WIN_CONSOLE "Windows: build with a console window (for debugging)" OFF)
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 if(NOT CMAKE_BUILD_TYPE)
@@ -77,6 +79,11 @@ else()
     if(TARGET SDL2::SDL2)
         if(TARGET SDL2::SDL2main)
             target_link_libraries(ssrecomp PRIVATE SDL2::SDL2main)
+            # A Windows program, not a console one: no terminal window opens beside the game
+            # (its messages go to game.log; see main()). Needs SDL2main's WinMain.
+            if(WIN32 AND NOT SSR_WIN_CONSOLE)
+                target_link_options(ssrecomp PRIVATE -mwindows)
+            endif()
         endif()
         target_link_libraries(ssrecomp PRIVATE SDL2::SDL2)
     else()

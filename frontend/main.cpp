@@ -28,6 +28,9 @@
 #if defined(__linux__) // (Android too)
 #include <unistd.h>
 #endif
+#ifdef _WIN32
+#include <io.h>
+#endif
 #ifndef SSR_NO_PNG
 #include <png.h>
 #endif
@@ -1080,6 +1083,19 @@ static bool ReadSnapshot(NDS& nds, const std::string& path, uint32_t* frame)
 int main(int argc, char** argv)
 {
     Options opt;
+#ifdef _WIN32
+    // A Windows program has no console, so when it is started by double-click (or from the
+    // setup window without a log) its messages would be lost: they go to game.log beside it.
+    {
+        const int fd = _fileno(stderr);
+        const intptr_t h = fd >= 0 ? _get_osfhandle(fd) : -1;
+        if (h == -1 || h == -2 || h == 0)
+        {
+            if (!freopen((ExeDir() + "game.log").c_str(), "w", stderr)) freopen("NUL", "w", stderr);
+            setvbuf(stderr, nullptr, _IOLBF, 0);
+        }
+    }
+#endif
 #ifdef __ANDROID__
     // Started from the app icon: the ROM is packed in the APK, the save and the settings
     // go in the app's own storage.

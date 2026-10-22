@@ -7,8 +7,12 @@
   "pokemon" is preferred if there are several) and keeps `soulsilver.sav` and `ssrecomp.cfg`
   beside it, so it no longer needs the setup program or `run.sh` to be started. If no ROM is
   there it says so in a message box. Command-line options (`--fullscreen`, ...) still work with
-  or without a ROM argument. Setup also leaves a ready-to-move copy of the game (with the
-  libraries it needs on Windows) in the `standalone` folder.
+  or without a ROM argument. Build also makes a game folder, `standalone`, with the program, the
+  libraries it needs on Windows and a copy of your ROM (copied there if it is not already), and
+  **Play** starts the game from it. A save and settings from before are carried over once.
+- **Windows: no console window.** The game is now a Windows program, so no terminal opens beside
+  it; its messages go to `game.log` beside the program. Configure with `-DSSR_WIN_CONSOLE=ON`
+  to get the console back for debugging.
 - A single-screen build of the decompilation (the one-screen game) is recognised when it
   starts and shown as the screen the game itself has chosen, with no merging or
   widescreen changes. The choice is not saved in the settings.

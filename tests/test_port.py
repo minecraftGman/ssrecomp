@@ -82,17 +82,47 @@ class DarwinSetupTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='ssrecomp portable ') as tmp:
             note = Path(tmp) / 'ssrecomp.rom'
             note.write_text('roms/game.nds\n')
-            log = Path(tmp) / 'game.log'
-            log.write_text('old launch\n')
-            with patch.object(setup, 'HERE', tmp), patch.object(setup, 'ROM_NOTE', str(note)):
+            (Path(tmp) / 'roms').mkdir()
+            (Path(tmp) / 'roms' / 'game.nds').write_bytes(b'rom data')
+            build = Path(tmp) / 'build'
+            build.mkdir()
+            (build / os.path.basename(setup.EXE)).write_text('program')
+            (build / 'SDL2.dll').write_text('library')
+            (Path(tmp) / 'soulsilver.sav').write_text('old save')
+            folder = Path(tmp) / 'standalone'
+            log = folder / 'game.log'
+            with patch.object(setup, 'HERE', tmp), patch.object(setup, 'BUILD', str(build)), \
+                 patch.object(setup, 'ROM_NOTE', str(note)):
                 for launch in ('first', 'second'):
                     def spawn(cmd, **kwargs):
-                        self.assertEqual(cmd[1], os.path.join(tmp, 'roms', 'game.nds'))
+                        # Started from the game folder, with the ROM copied next to the program.
+                        self.assertEqual(cmd[0], str(folder / os.path.basename(setup.EXE)))
+                        self.assertEqual(cmd[1], str(folder / 'game.nds'))
                         self.assertIn('--config', cmd)
                         kwargs['stdout'].write(launch + '\n')
                     with patch.object(subprocess, 'Popen', side_effect=spawn):
                         setup.play()
                     self.assertEqual(log.read_text(), launch + '\n')
+            self.assertEqual((folder / 'game.nds').read_bytes(), b'rom data')
+            self.assertEqual((folder / 'SDL2.dll').read_text(), 'library')
+            self.assertEqual((folder / 'soulsilver.sav').read_text(), 'old save')
+
+    def test_game_folder_keeps_newer_save_and_skips_rom_already_there(self):
+        with tempfile.TemporaryDirectory(prefix='ssrecomp folder ') as tmp:
+            build = Path(tmp) / 'build'
+            build.mkdir()
+            (build / os.path.basename(setup.EXE)).write_text('program')
+            folder = Path(tmp) / 'standalone'
+            folder.mkdir()
+            rom = folder / 'game.nds'
+            rom.write_bytes(b'rom data')
+            (folder / 'soulsilver.sav').write_text('new save')
+            (Path(tmp) / 'soulsilver.sav').write_text('old save')
+            lines = []
+            with patch.object(setup, 'HERE', tmp), patch.object(setup, 'BUILD', str(build)):
+                setup.make_standalone(lines.append, str(rom))
+            self.assertEqual((folder / 'soulsilver.sav').read_text(), 'new save')
+            self.assertFalse(any('Copying the ROM' in line for line in lines))
 
     def test_packaged_updates_preserve_user_files(self):
         with tempfile.TemporaryDirectory(prefix='ssrecomp update with spaces ') as tmp:
