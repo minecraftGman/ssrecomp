@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Battle: the bottom screen no longer flashes up for a second.** The whole touch screen is shown in a
+  battle only for something the strips do not cover (a target, a question), which stands still. It was
+  also brought up by the buttons sliding in and out or a fade, which take about as long as the
+  delay before it appears, and then it was held on screen for another two-thirds of a second. It now
+  waits until the touch screen has stopped moving (or has gone on for a second and a half).
 - **Battle: A on the command row always chose FIGHT.** In a game built from a ROM (not a
   single-screen decompilation build) the arrows moved the outline along FIGHT, BAG, POKeMON and RUN,
   but A pressed the button the single-screen cursor had selected, which never moved there: FIGHT.

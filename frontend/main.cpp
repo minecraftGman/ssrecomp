@@ -1403,6 +1403,11 @@ int main(int argc, char** argv)
     // Frames in a row in which the battle's touch screen showed something that is neither
     // of the menus with a layout of their own nor the idle backdrop.
     int battleUnknown = 0;
+    // Frames in a row in which that touch screen's picture did not change at all. The buttons
+    // sliding in and out and the fades change it every frame; a question waiting for an answer
+    // stands still. (Only the second counts as something to show in full.)
+    int battleStable = 0;
+    uint64_t battleBottomHash = 0;
     // The frame until which the battle strip stays up while its buttons are not recognised:
     // between the commands and the moves the game slides one set out and the other in, and
     // the strip would otherwise vanish for those frames, uncovering the message box.
@@ -2118,6 +2123,16 @@ int main(int argc, char** argv)
             const bool moves = !cmd && blue(40, 166) && blue(128, 166) && blue(216, 166);
             const bool idle = AutoFocus::Blank(screens[1].pixels) || (!blue(128, 166) && !red(128, 60));
             battleUnknown = (cmd || moves || idle) ? 0 : battleUnknown + 1;
+            {
+                const uint64_t h = Fnv1a(screens[1].pixels, 256 * 192 * 4);
+                battleStable = h == battleBottomHash ? battleStable + 1 : 0;
+                battleBottomHash = h;
+            }
+            // The whole touch screen is shown (as a card) for what the strips do not cover: a
+            // target, a yes/no question. Not for the moments in between, when it is only
+            // moving (that used to bring the card up for a second, then hold it): it must have
+            // stood still for a while, or have gone on for a long time.
+            const bool unknownSettled = battleUnknown >= 20 && (battleStable >= 10 || battleUnknown >= 90);
             // Only after the commands (FIGHT): after a move is chosen the battle goes on and
             // its messages must not be covered.
             if (cmd) battleStripUntil = frame + 20;
@@ -2207,7 +2222,7 @@ int main(int argc, char** argv)
                     }
                 }
             }
-            else if (viewWidth < 300 || battleUnknown >= 20)
+            else if (viewWidth < 300 || unknownSettled)
             {
                 sc.name = "battle-menu";
                 float scale = std::min((126 - L) / 256, 98.0f / 192);
@@ -3148,6 +3163,31 @@ int main(int argc, char** argv)
         int got = 0;
         if (!paused)
         {
+            // What the game is given while a map is open, written when it changes (for reports
+            // of a map that scrolls by itself: a held key, a stick, or a touch that never lets go).
+            if (appActive("GearMap") || appActive("TownMap"))
+            {
+                static uint32_t lastKeys = ~0u;
+                static bool lastTouch = false, lastMouse = false;
+                static int lastTX = -1, lastTY = -1, lastSticks[6] = { 99, 99, 99, 99, 99, 99 };
+                const int sticks[6] = { (int)(ps.lx * 10), (int)(ps.ly * 10), (int)(ps.rx * 10), (int)(ps.ry * 10),
+                                        (int)(ps.lt * 10), (int)(ps.rt * 10) };
+                bool changed = keys != lastKeys || touching != lastTouch || mouseDown != lastMouse ||
+                               (touching && (touchX != lastTX || touchY != lastTY));
+                for (int i = 0; i < 6; i++) changed |= sticks[i] != lastSticks[i];
+                if (changed)
+                {
+                    fprintf(stderr, "[map input] frame %u: keys %03x, touch %d (%d,%d), mouse %d, sticks L %d,%d R %d,%d, triggers %d,%d (tenths)\n",
+                        frame, keys, touching ? 1 : 0, touchX, touchY, mouseDown ? 1 : 0,
+                        sticks[0], sticks[1], sticks[2], sticks[3], sticks[4], sticks[5]);
+                    lastKeys = keys;
+                    lastTouch = touching;
+                    lastMouse = mouseDown;
+                    lastTX = touchX;
+                    lastTY = touchY;
+                    memcpy(lastSticks, sticks, sizeof(sticks));
+                }
+            }
             nds->SetKeyMask(~keys & 0xFFF);
             if (touching) nds->TouchScreen((u16)touchX, (u16)touchY);
             else nds->ReleaseScreen();
